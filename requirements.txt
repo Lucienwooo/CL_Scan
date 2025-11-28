@@ -1,0 +1,5 @@
+customtkinter>=5.2.0
+pytesseract>=0.3.10
+pyperclip>=1.8.2
+Pillow>=10.0.0
+PyInstaller>=6.0.0
