@@ -5,6 +5,7 @@ CL_Scan 打包腳本（輕量版）
 """
 import PyInstaller.__main__
 import os
+import sys
 import shutil
 import zipfile
 from datetime import datetime
@@ -12,6 +13,15 @@ from datetime import datetime
 # 確保在正確的目錄
 script_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(script_dir)
+
+# 檢查圖示檔案
+# icon_path = os.path.join(script_dir, 'cl_scan_icon.ico')
+# if not os.path.exists(icon_path):
+#     print("⚠️ 警告：找不到圖示檔案")
+#     icon_path = 'NONE'
+# else:
+#     print(f"✓ 找到圖示檔案: {icon_path}")
+icon_path = 'NONE'
 
 print("=" * 60)
 print("開始打包 CL_Scan (輕量版 - 單一執行檔)")
@@ -25,7 +35,7 @@ PyInstaller.__main__.run([
     '--onefile',                 # 打包成單一執行檔
     '--windowed',                # 不顯示命令列視窗
     '--name=CL_Scan',            # 執行檔名稱
-    '--icon=NONE',               # 如果有 icon 可以指定
+    # f'--icon={icon_path}',       # 使用生成的圖示
     '--clean',                   # 清理暫存檔
     '--noconfirm',               # 不詢問覆蓋
     # 添加所需的隱藏導入
