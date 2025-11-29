@@ -1,5 +1,6 @@
 import customtkinter as ctk
 import tkinter as tk
+from tkinter import simpledialog
 from PIL import Image, ImageTk, ImageGrab, ImageEnhance
 import pytesseract
 import pyperclip
@@ -8,6 +9,7 @@ import sys
 import ctypes
 import string
 import time
+import json
 
 # ================= 路徑設定（支援打包後執行）=================
 if getattr(sys, 'frozen', False):
@@ -242,19 +244,41 @@ class OCRApp(ctk.CTk):
         self.geometry("500x700")
         
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(3, weight=1)
+        self.grid_rowconfigure(4, weight=1)
+        
+        # 調試模式開關
+        self.debug_mode = False
+        self.last_processed_image = None
+        
+        # 載入快捷鍵設定
+        self.config_file = os.path.join(BASE_PATH, 'hotkey_config.json')
+        self.hotkey = self.load_hotkey()
+        
+        # 綁定快捷鍵
+        self.bind(f"<{self.hotkey}>", lambda e: self.start_snipping())
 
         # 按鈕區
         self.btn_capture = ctk.CTkButton(
-            self, text="截圖辨識 (Screen Snipping)", command=self.start_snipping,
+            self, text=f"截圖辨識 (Screen Snipping) - {self.hotkey}", command=self.start_snipping,
             height=50, font=("Microsoft JhengHei UI", 16, "bold"),
             fg_color="#106EBE", hover_color="#005A9E"
         )
         self.btn_capture.grid(row=0, column=0, padx=20, pady=20, sticky="ew")
+        
+        # 綁定右鍵更改快捷鍵
+        self.btn_capture.bind("<Button-3>", self.change_hotkey)
+        
+        # 調試按鈕
+        self.btn_debug = ctk.CTkButton(
+            self, text="💾 保存預處理圖片", command=self.save_debug_image,
+            height=30, font=("Microsoft JhengHei UI", 12),
+            fg_color="#666666", hover_color="#555555"
+        )
+        self.btn_debug.grid(row=1, column=0, padx=20, pady=(0, 10), sticky="ew")
 
         # 圖片預覽區
         self.preview_frame = ctk.CTkFrame(self, fg_color="#2B2B2B")
-        self.preview_frame.grid(row=1, column=0, padx=20, pady=0, sticky="ew")
+        self.preview_frame.grid(row=2, column=0, padx=20, pady=0, sticky="ew")
         
         self.lbl_image = ctk.CTkLabel(
             self.preview_frame, text="截圖預覽", width=300, height=150, corner_radius=8
@@ -263,17 +287,96 @@ class OCRApp(ctk.CTk):
 
         # 狀態標籤
         self.lbl_status = ctk.CTkLabel(self, text="準備就緒", text_color="#AAAAAA")
-        self.lbl_status.grid(row=2, column=0, pady=(10, 5))
+        self.lbl_status.grid(row=3, column=0, pady=(10, 5))
 
         # 結果文字框
         lbl_result_title = ctk.CTkLabel(self, text="辨識結果 (點擊複製):", anchor="w")
-        lbl_result_title.grid(row=3, column=0, padx=20, pady=(10,0), sticky="nw")
+        lbl_result_title.grid(row=4, column=0, padx=20, pady=(10,0), sticky="nw")
 
         self.textbox = ctk.CTkTextbox(
             self, font=("Consolas", 14), fg_color="#1D1D1D", text_color="#FFFFFF"
         )
-        self.textbox.grid(row=4, column=0, padx=20, pady=(5, 20), sticky="nsew")
+        self.textbox.grid(row=5, column=0, padx=20, pady=(5, 20), sticky="nsew")
         self.textbox.bind("<Button-1>", self.copy_to_clipboard)
+    
+    def load_hotkey(self):
+        """載入快捷鍵設定"""
+        try:
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    return config.get('hotkey', 'F3')
+        except:
+            pass
+        return 'F3'  # 預設值
+    
+    def save_hotkey(self, hotkey):
+        """儲存快捷鍵設定"""
+        try:
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump({'hotkey': hotkey}, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"儲存設定失敗: {e}")
+    
+    def change_hotkey(self, event):
+        """右鍵更改快捷鍵"""
+        dialog = tk.Toplevel(self)
+        dialog.title("更改快捷鍵")
+        dialog.geometry("300x150")
+        dialog.transient(self)
+        dialog.grab_set()
+        
+        # 置中顯示
+        dialog.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() // 2) - (dialog.winfo_width() // 2)
+        y = self.winfo_y() + (self.winfo_height() // 2) - (dialog.winfo_height() // 2)
+        dialog.geometry(f"+{x}+{y}")
+        
+        label = tk.Label(dialog, text=f"目前快捷鍵: {self.hotkey}\n\n輸入新快捷鍵 (例如: F3, F4, Control-s):", 
+                        font=("Microsoft JhengHei UI", 10))
+        label.pack(pady=15)
+        
+        entry = tk.Entry(dialog, font=("Microsoft JhengHei UI", 12), width=20)
+        entry.insert(0, self.hotkey)
+        entry.pack(pady=5)
+        entry.focus()
+        
+        def apply_hotkey():
+            new_hotkey = entry.get().strip()
+            if new_hotkey:
+                # 解除舊快捷鍵
+                try:
+                    self.unbind(f"<{self.hotkey}>")
+                except:
+                    pass
+                
+                # 設定新快捷鍵
+                self.hotkey = new_hotkey
+                self.save_hotkey(new_hotkey)
+                
+                # 綁定新快捷鍵
+                try:
+                    self.bind(f"<{new_hotkey}>", lambda e: self.start_snipping())
+                    self.btn_capture.configure(text=f"截圖辨識 (Screen Snipping) - {new_hotkey}")
+                    self.lbl_status.configure(text=f"✅ 快捷鍵已更改為 {new_hotkey}", text_color="#2CC985")
+                except Exception as e:
+                    self.lbl_status.configure(text=f"❌ 快捷鍵設定失敗: {e}", text_color="red")
+                
+                dialog.destroy()
+        
+        btn_frame = tk.Frame(dialog)
+        btn_frame.pack(pady=10)
+        
+        btn_ok = tk.Button(btn_frame, text="確定", command=apply_hotkey, 
+                          font=("Microsoft JhengHei UI", 10), width=8)
+        btn_ok.pack(side=tk.LEFT, padx=5)
+        
+        btn_cancel = tk.Button(btn_frame, text="取消", command=dialog.destroy,
+                              font=("Microsoft JhengHei UI", 10), width=8)
+        btn_cancel.pack(side=tk.LEFT, padx=5)
+        
+        # 按 Enter 確定
+        entry.bind("<Return>", lambda e: apply_hotkey())
 
     def start_snipping(self):
         # SnippingTool 會自動隱藏主視窗，這裡不需要手動 iconify
@@ -312,31 +415,48 @@ class OCRApp(ctk.CTk):
                 return
 
             # === 圖像預處理：提高辨識率 ===
-            from PIL import ImageEnhance, ImageFilter
+            from PIL import ImageEnhance, ImageFilter, ImageOps
             
             # 1. 轉為灰階
             processed_image = image.convert('L')
             
-            # 2. 放大 (如果圖片太小)
-            if processed_image.width < 100:
-                scale = 3
+            # 2. 自動對比（處理不均勻光照）
+            processed_image = ImageOps.autocontrast(processed_image)
+            
+            # 3. 智能放大
+            if processed_image.width < 100 or processed_image.height < 50:
+                scale = 4  # 小圖放大 4 倍
                 processed_image = processed_image.resize(
                     (processed_image.width * scale, processed_image.height * scale), 
                     Image.Resampling.LANCZOS
                 )
             else:
-                # 預設放大 2 倍以利 OCR
+                # 一般圖片放大 2.5 倍
+                scale = 2.5
+                new_width = int(processed_image.width * scale)
+                new_height = int(processed_image.height * scale)
                 processed_image = processed_image.resize(
-                    (processed_image.width * 2, processed_image.height * 2), 
+                    (new_width, new_height), 
                     Image.Resampling.LANCZOS
                 )
 
-            # 3. 增強對比度與銳化
+            # 4. 增強對比度
             enhancer = ImageEnhance.Contrast(processed_image)
-            processed_image = enhancer.enhance(2.0)
+            processed_image = enhancer.enhance(2.5)
+            
+            # 5. 雙重銳化（提升邊緣清晰度）
+            processed_image = processed_image.filter(ImageFilter.SHARPEN)
             processed_image = processed_image.filter(ImageFilter.SHARPEN)
             
-            # OCR 設定
+            # 6. 二值化處理（讓文字更清晰）
+            # 使用固定閾值進行二值化
+            threshold = 150
+            processed_image = processed_image.point(lambda p: 255 if p > threshold else 0)
+            
+            # 保存預處理後的圖片供調試使用
+            self.last_processed_image = processed_image
+            
+            # OCR 設定 - 使用更適合表格和數字的配置
             config = r'--oem 3 --psm 6'
             
             # 執行 OCR，處理編碼問題
@@ -391,6 +511,31 @@ class OCRApp(ctk.CTk):
             pyperclip.copy(content)
             self.lbl_status.configure(text="📋 已複製！", text_color="#00BFFF")
             self.after(1500, lambda: self.lbl_status.configure(text="✅ 完成 (點擊複製)", text_color="#2CC985"))
+    
+    def save_debug_image(self):
+        """保存預處理後的圖片用於調試"""
+        if self.last_processed_image is None:
+            self.lbl_status.configure(text="⚠️ 請先執行截圖辨識", text_color="#FFA500")
+            return
+        
+        try:
+            # 生成檔名（使用時間戳記）
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"debug_processed_{timestamp}.png"
+            filepath = os.path.join(BASE_PATH, filename)
+            
+            # 保存圖片
+            self.last_processed_image.save(filepath)
+            
+            self.lbl_status.configure(text=f"💾 已保存: {filename}", text_color="#00FF00")
+            print(f"調試圖片已保存: {filepath}")
+            
+            # 3秒後恢復原狀態
+            self.after(3000, lambda: self.lbl_status.configure(text="✅ 完成 (點擊複製)", text_color="#2CC985"))
+        except Exception as e:
+            self.lbl_status.configure(text=f"❌ 保存失敗: {str(e)}", text_color="red")
+            print(f"保存調試圖片失敗: {e}")
 
 if __name__ == "__main__":
     app = OCRApp()
