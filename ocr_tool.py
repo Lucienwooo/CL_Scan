@@ -320,26 +320,56 @@ class OCRApp(ctk.CTk):
     
     def change_hotkey(self, event):
         """右鍵更改快捷鍵"""
-        dialog = tk.Toplevel(self)
+        dialog = ctk.CTkToplevel(self)
         dialog.title("更改快捷鍵")
-        dialog.geometry("300x150")
+        dialog.geometry("400x220")
         dialog.transient(self)
         dialog.grab_set()
         
         # 置中顯示
         dialog.update_idletasks()
-        x = self.winfo_x() + (self.winfo_width() // 2) - (dialog.winfo_width() // 2)
-        y = self.winfo_y() + (self.winfo_height() // 2) - (dialog.winfo_height() // 2)
-        dialog.geometry(f"+{x}+{y}")
+        x = self.winfo_x() + (self.winfo_width() // 2) - (200)
+        y = self.winfo_y() + (self.winfo_height() // 2) - (110)
+        dialog.geometry(f"400x220+{x}+{y}")
         
-        label = tk.Label(dialog, text=f"目前快捷鍵: {self.hotkey}\n\n輸入新快捷鍵 (例如: F3, F4, Control-s):", 
-                        font=("Microsoft JhengHei UI", 10))
-        label.pack(pady=15)
+        # 標題
+        title_label = ctk.CTkLabel(
+            dialog, 
+            text="⌨️ 自訂快捷鍵", 
+            font=("Microsoft JhengHei UI", 18, "bold")
+        )
+        title_label.pack(pady=(20, 10))
         
-        entry = tk.Entry(dialog, font=("Microsoft JhengHei UI", 12), width=20)
+        # 當前快捷鍵顯示
+        current_label = ctk.CTkLabel(
+            dialog, 
+            text=f"目前快捷鍵: {self.hotkey}", 
+            font=("Microsoft JhengHei UI", 12),
+            text_color="#AAAAAA"
+        )
+        current_label.pack(pady=5)
+        
+        # 提示文字
+        hint_label = ctk.CTkLabel(
+            dialog, 
+            text="輸入新快捷鍵 (例如: F3, F4, Control-s)", 
+            font=("Microsoft JhengHei UI", 10),
+            text_color="#888888"
+        )
+        hint_label.pack(pady=(5, 10))
+        
+        # 輸入框
+        entry = ctk.CTkEntry(
+            dialog, 
+            font=("Microsoft JhengHei UI", 14),
+            width=250,
+            height=35,
+            justify="center"
+        )
         entry.insert(0, self.hotkey)
-        entry.pack(pady=5)
+        entry.pack(pady=10)
         entry.focus()
+        entry.select_range(0, tk.END)
         
         def apply_hotkey():
             new_hotkey = entry.get().strip()
@@ -364,19 +394,38 @@ class OCRApp(ctk.CTk):
                 
                 dialog.destroy()
         
-        btn_frame = tk.Frame(dialog)
-        btn_frame.pack(pady=10)
+        # 按鈕區
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(pady=15)
         
-        btn_ok = tk.Button(btn_frame, text="確定", command=apply_hotkey, 
-                          font=("Microsoft JhengHei UI", 10), width=8)
+        btn_ok = ctk.CTkButton(
+            btn_frame, 
+            text="✓ 確定", 
+            command=apply_hotkey,
+            font=("Microsoft JhengHei UI", 12, "bold"),
+            width=100,
+            height=35,
+            fg_color="#106EBE",
+            hover_color="#005A9E"
+        )
         btn_ok.pack(side=tk.LEFT, padx=5)
         
-        btn_cancel = tk.Button(btn_frame, text="取消", command=dialog.destroy,
-                              font=("Microsoft JhengHei UI", 10), width=8)
+        btn_cancel = ctk.CTkButton(
+            btn_frame, 
+            text="✕ 取消", 
+            command=dialog.destroy,
+            font=("Microsoft JhengHei UI", 12),
+            width=100,
+            height=35,
+            fg_color="#666666",
+            hover_color="#555555"
+        )
         btn_cancel.pack(side=tk.LEFT, padx=5)
         
         # 按 Enter 確定
         entry.bind("<Return>", lambda e: apply_hotkey())
+        # 按 Escape 取消
+        dialog.bind("<Escape>", lambda e: dialog.destroy())
 
     def start_snipping(self):
         # SnippingTool 會自動隱藏主視窗，這裡不需要手動 iconify
